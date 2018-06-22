@@ -1,13 +1,13 @@
 package main
 
 import (
-	"fmt"
+	//"fmt"
 	"sync"
 	"time"
 )
 
 const (
-	DefaultChannelSize = 100
+	DefaultChannelSize = 10000
 )
 
 type Worker struct {
@@ -16,52 +16,73 @@ type Worker struct {
 	workerPool chan chan Job
 	quitChan   chan bool
 	wg         *sync.WaitGroup
-	execTime   time.Duration
-	poolTime   time.Duration
+	stats      WorkerStat
 }
 
-func (w *Worker) start() {
+//TODO: Some of the statistics here should be maintened for the last n seconds
+//And not for the lifetime
+type WorkerStat struct {
+	alive       bool
+	startTime   time.Time
+	execTime    time.Duration
+	poolTime    time.Duration
+	jobsFailed  int
+	jobsSuccess int
+	jobsTotal   int
+	throughput  int
+}
 
+func (w *Worker) Start() {
+	w.stats.alive = true
+	w.stats.startTime = time.Now()
 	go func() {
 
 		defer func() {
-			fmt.Printf("Worker[%d] spent %s time processing and %s time in pool\n", w.id, w.execTime, w.poolTime)
+			//fmt.Printf("Worker[%d] spent %s time processing and %s time in pool\n", w.id, w.execTime, w.poolTime)
+			w.stats.alive = false
 			w.wg.Done()
-			
-			//fmt.Printf("Worker[%d] has finished\n", w.id)
-        	// recover from panic if one occured. Set err to nil otherwise.
-        	if (recover() != nil) {
-        		//fmt.Printf("Worker[%d] has hit panic. Recovered\n", w.id)
-        		//silent death
-        	}
-    	}()
 
-    	fmt.Printf("Worker[%d] is alive!\n", w.id)
-    	
+			//fmt.Printf("Worker[%d] has finished\n", w.id)
+			// recover from panic if one occured. Set err to nil otherwise.
+			if recover() != nil {
+				//fmt.Printf("Worker[%d] has hit panic. Recovered\n", w.id)
+				//silent death
+			}
+		}()
+
 		//Mark attendance in the worker pool
 		w.workerPool <- w.jobQueue
 		poolStart := time.Now()
 
 		for job := range w.jobQueue {
-			w.poolTime += time.Since(poolStart)
+			w.stats.poolTime += time.Since(poolStart)
 			// Add my jobQueue to the worker pool.
 			execStart := time.Now()
-			job.Execute()
-			w.execTime += time.Since(execStart) 
-			//fmt.Printf("Worker[%d] completed %s\n", w.id, job.ID())
-			
+			err := job.Execute()
+			w.stats.execTime += time.Since(execStart)
+			w.stats.jobsTotal += 1
+			if err == nil {
+				w.stats.jobsSuccess += 1
+			} else {
+				w.stats.jobsFailed += 1
+			}
+
+			//TODO: Add a throughput mechanism here
+
 			//Add the worker back to the pool
-			//This can panic if the worker pool is already closed 
+			//This can panic if the worker pool is already closed
 			//Shutting down state
 			w.workerPool <- w.jobQueue
 			poolStart = time.Now()
 		}
 		//The channel has closed. Time to shutdown. Stackunwind will decrement the counter
-		
+
 	}()
 }
 
-
+func (w *Worker) Stats() WorkerStat {
+	return w.stats
+}
 
 // NewWorker creates takes a numeric id and a channel w/ worker pool.
 func NewWorker(id int, workerPool chan chan Job, wg *sync.WaitGroup) *Worker {
@@ -71,6 +92,6 @@ func NewWorker(id int, workerPool chan chan Job, wg *sync.WaitGroup) *Worker {
 		workerPool: workerPool,
 		quitChan:   make(chan bool),
 		wg:         wg,
+		stats:      WorkerStat{},
 	}
 }
-
