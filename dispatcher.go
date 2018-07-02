@@ -104,14 +104,26 @@ func (d *Dispatcher) heartbeat() {
 func (d *Dispatcher) dispatch() {
 	d.dispWg.Add(1)
 
-	for job := range d.jobQueue {
+	//Find the first worker in the pool
+	workerJobQueue := <-d.workerPool
 
-		//fmt.Printf("fetching workerJobQueue for: %s\n", job.Name())
-		workerJobQueue := <-d.workerPool
-		//fmt.Printf("Adding %s to workerJobQueue\n", job.ID())
+	for job := range d.jobQueue {
+		switch {
+		case workerJobQueue <-job:
+			//Could not push this job
+		default:
+			//The particular worker queue is full
+			//Find the next worker queue
+			workerJobQueue = <-d.workerPool
+
+			//Add this job now. This is a dirty hack at this point
+			workerJobQueue <- job
+		}
 		
-		workerJobQueue <- job
+		//fmt.Printf("fetching workerJobQueue for: %s\n", job.Name())
+		//fmt.Printf("Adding %s to workerJobQueue\n", job.ID())
 	}
+
 	log.Printf("Dispatcher jobQueue has ended.\n")
 
 	//Close all the workers that are entering the queue now

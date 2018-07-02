@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
 	"time"
-	"log"
 	//_ "worker-queue/dispatcher"
 )
 
@@ -36,15 +36,14 @@ func generateWork(workers int, term chan os.Signal, done chan bool) {
 
 		//d := DefaultDispatcher("Chief")
 
-		config := DispatcherConfig {
-			Name: "RedChief",
+		config := DispatcherConfig{
+			Name:         "RedChief",
 			JobQueueSize: 1,
-			MaxWorkers: 2,
-			WorkerBurst: 2,
+			MaxWorkers:   2,
+			WorkerBurst:  2,
 		}
 
 		d, _ := NewDispatcher(config)
-
 
 		defer func() {
 			d.Close()

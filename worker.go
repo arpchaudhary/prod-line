@@ -2,9 +2,9 @@ package main
 
 import (
 	//"fmt"
+	"log"
 	"sync"
 	"time"
-	"log"
 )
 
 const (
@@ -17,7 +17,7 @@ type Worker struct {
 	workerPool chan chan Job
 	quitChan   chan bool
 	wg         *sync.WaitGroup
-	burst 	   int
+	burst      int
 	stats      WorkerStat
 }
 
