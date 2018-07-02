@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
+	"runtime"
 	"sync"
 	"time"
-	"runtime"
 )
 
 const (
@@ -105,12 +105,13 @@ func (d *Dispatcher) dispatch() {
 	d.dispWg.Add(1)
 
 	//Find the first worker in the pool
-	workerJobQueue := <-d.workerPool
 
+	workerJobQueue := <-d.workerPool
 	for job := range d.jobQueue {
-		switch {
-		case workerJobQueue <-job:
-			//Could not push this job
+
+		select {
+		case workerJobQueue <- job:
+			//Pushed this job successfully
 		default:
 			//The particular worker queue is full
 			//Find the next worker queue
@@ -119,7 +120,7 @@ func (d *Dispatcher) dispatch() {
 			//Add this job now. This is a dirty hack at this point
 			workerJobQueue <- job
 		}
-		
+
 		//fmt.Printf("fetching workerJobQueue for: %s\n", job.Name())
 		//fmt.Printf("Adding %s to workerJobQueue\n", job.ID())
 	}
@@ -129,6 +130,7 @@ func (d *Dispatcher) dispatch() {
 	//Close all the workers that are entering the queue now
 	for worker := range d.workerPool {
 		close(worker)
+		fmt.Println("Closed worker")
 	}
 
 	//Need to shut down the workerPool
@@ -163,10 +165,10 @@ func (d *Dispatcher) Close() {
 }
 
 func DefaultDispatcher(name string) *Dispatcher {
-	defaultConfig := DispatcherConfig {
-		Name: name,
-		MaxWorkers: runtime.NumCPU(),
-		WorkerBurst: 1,
+	defaultConfig := DispatcherConfig{
+		Name:         name,
+		MaxWorkers:   runtime.NumCPU(),
+		WorkerBurst:  1,
 		JobQueueSize: 1000,
 	}
 
@@ -186,7 +188,7 @@ func NewDispatcher(config DispatcherConfig) (*Dispatcher, error) {
 	}
 
 	return &Dispatcher{
-		config: config,
+		config:      config,
 		jobQueue:    make(chan Job, config.JobQueueSize),
 		workerPool:  make(chan chan Job, config.MaxWorkers),
 		workerWg:    &sync.WaitGroup{},

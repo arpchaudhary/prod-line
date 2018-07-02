@@ -12,7 +12,7 @@ const (
 )
 
 type Worker struct {
-	id         int
+	Id         int
 	jobQueue   chan Job
 	workerPool chan chan Job
 	quitChan   chan bool
@@ -61,7 +61,7 @@ func (w *Worker) Start() {
 			// Add my jobQueue to the worker pool.
 			execStart := time.Now()
 			err := job.Execute()
-			log.Printf("Worker[%d] executed Job[%s]\n", w.id, job.ID())
+			log.Printf("Worker[%d] executed Job[%s]\n", w.Id, job.ID())
 			w.stats.execTime += time.Since(execStart)
 			w.stats.jobsTotal += 1
 			if err == nil {
@@ -75,7 +75,11 @@ func (w *Worker) Start() {
 			//Add the worker back to the pool
 			//This can panic if the worker pool is already closed
 			//Shutting down state
-			w.workerPool <- w.jobQueue
+			
+			if len(w.jobQueue) == 0 {
+				w.workerPool <- w.jobQueue
+			}
+
 			poolStart = time.Now()
 		}
 		//The channel has closed. Time to shutdown. Stackunwind will decrement the counter
@@ -90,7 +94,7 @@ func (w *Worker) Stats() WorkerStat {
 // NewWorker creates takes a numeric id and a channel w/ worker pool.
 func NewWorker(id int, workerPool chan chan Job, wg *sync.WaitGroup, burst int) *Worker {
 	return &Worker{
-		id:         id,
+		Id:         id,
 		jobQueue:   make(chan Job, burst),
 		workerPool: workerPool,
 		quitChan:   make(chan bool),

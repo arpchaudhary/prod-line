@@ -40,7 +40,7 @@ func generateWork(workers int, term chan os.Signal, done chan bool) {
 			Name:         "RedChief",
 			JobQueueSize: 1,
 			MaxWorkers:   2,
-			WorkerBurst:  2,
+			WorkerBurst:  4,
 		}
 
 		d, _ := NewDispatcher(config)
