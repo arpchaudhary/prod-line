@@ -4,6 +4,7 @@ import (
 	//"fmt"
 	"sync"
 	"time"
+	"log"
 )
 
 const (
@@ -16,6 +17,7 @@ type Worker struct {
 	workerPool chan chan Job
 	quitChan   chan bool
 	wg         *sync.WaitGroup
+	burst 	   int
 	stats      WorkerStat
 }
 
@@ -59,6 +61,7 @@ func (w *Worker) Start() {
 			// Add my jobQueue to the worker pool.
 			execStart := time.Now()
 			err := job.Execute()
+			log.Printf("Worker[%d] executed Job[%s]\n", w.id, job.ID())
 			w.stats.execTime += time.Since(execStart)
 			w.stats.jobsTotal += 1
 			if err == nil {
@@ -85,10 +88,10 @@ func (w *Worker) Stats() WorkerStat {
 }
 
 // NewWorker creates takes a numeric id and a channel w/ worker pool.
-func NewWorker(id int, workerPool chan chan Job, wg *sync.WaitGroup) *Worker {
+func NewWorker(id int, workerPool chan chan Job, wg *sync.WaitGroup, burst int) *Worker {
 	return &Worker{
 		id:         id,
-		jobQueue:   make(chan Job),
+		jobQueue:   make(chan Job, burst),
 		workerPool: workerPool,
 		quitChan:   make(chan bool),
 		wg:         wg,

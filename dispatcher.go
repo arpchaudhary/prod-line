@@ -5,6 +5,7 @@ import (
 	"log"
 	"sync"
 	"time"
+	"runtime"
 )
 
 const (
@@ -41,30 +42,30 @@ type DispatcherConfig struct {
 
 func (config *DispatcherConfig) validate() error {
 	if config.JobQueueSize < 1 {
-		return fmt.Errorf("Invalid JobQueueSize %d for dispatcher named %s", config.JobQueueSize, config.Name)
+		return fmt.Errorf("Invalid JobQueueSize %d for %s dispatcher", config.JobQueueSize, config.Name)
 	}
 
-	if config.WorkerPoolSize < 1 {
-		return fmt.Errorf("Invalid worker pool size %d for dispatcher named %s", config.WorkerPoolSize, config.Name)
+	if config.MaxWorkers < 1 {
+		return fmt.Errorf("Invalid worker pool size %d for %s dispatcher", config.MaxWorkers, config.Name)
 	}
 
 	if config.WorkerBurst < 1 {
-		return fmt.Errorf("Invalid worker burst mode size %d for dispatcher named %s", config.WorkerBurst, config.Name)
+		return fmt.Errorf("Invalid worker burst mode size %d for %s dispatcher", config.WorkerBurst, config.Name)
 	}
 	return nil
 }
 
 func (d *Dispatcher) Run() {
-	for i := 0; i < d.maxWorkers; i++ {
+	for i := 0; i < d.config.MaxWorkers; i++ {
 		id := i + 1
 		d.workerWg.Add(1)
-		worker := NewWorker(id, d.workerPool, d.workerWg)
+		worker := NewWorker(id, d.workerPool, d.workerWg, d.config.WorkerBurst)
 		d.workerMap[id] = worker
 		worker.Start()
 	}
+	log.Printf("%s dispatcher started with %d workers\n", d.config.Name, d.config.MaxWorkers)
 	go d.heartbeat()
 	go d.dispatch()
-
 }
 
 func (d *Dispatcher) heartbeat() {
@@ -94,7 +95,7 @@ func (d *Dispatcher) heartbeat() {
 			//throughput := ((throughput * (runCount-1)) + workerStats.throughput)/runCount
 		}
 		d.stats.throughput = throughput
-		log.Println("[HBeat] Alive:", aliveCount, " Success:", d.stats.jobsSuccess, " Failed:", d.stats.jobsFailed)
+		//log.Println("[HBeat] Alive:", aliveCount, " Success:", d.stats.jobsSuccess, " Failed:", d.stats.jobsFailed)
 
 	}
 
@@ -108,6 +109,7 @@ func (d *Dispatcher) dispatch() {
 		//fmt.Printf("fetching workerJobQueue for: %s\n", job.Name())
 		workerJobQueue := <-d.workerPool
 		//fmt.Printf("Adding %s to workerJobQueue\n", job.ID())
+		
 		workerJobQueue <- job
 	}
 	log.Printf("Dispatcher jobQueue has ended.\n")
@@ -148,13 +150,25 @@ func (d *Dispatcher) Close() {
 
 }
 
-// NewDispatcher creates, and returns a new Dispatcher object.
-func NewDispatcher(config DispatcherConfig) (*Dispatcher, error) {
-
-	if config == nil {
-		return nil, fmt.Errorf("Dispatcher cannot be started with a nil config")
+func DefaultDispatcher(name string) *Dispatcher {
+	defaultConfig := DispatcherConfig {
+		Name: name,
+		MaxWorkers: runtime.NumCPU(),
+		WorkerBurst: 1,
+		JobQueueSize: 1000,
 	}
 
+	d, err := NewDispatcher(defaultConfig)
+	if err != nil {
+		//This is the cost of using the default dispatch
+		//If you dont want to take decisions, we will take them for you
+		log.Fatalf("Dispatcher %s could not be started with defaults. Something is horribly wrong.", name)
+	}
+	return d
+}
+
+// NewDispatcher creates, and returns a new Dispatcher object.
+func NewDispatcher(config DispatcherConfig) (*Dispatcher, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
@@ -162,7 +176,6 @@ func NewDispatcher(config DispatcherConfig) (*Dispatcher, error) {
 	return &Dispatcher{
 		config: config,
 		jobQueue:    make(chan Job, config.JobQueueSize),
-		maxWorkers:  config.MaxWorkers,
 		workerPool:  make(chan chan Job, config.MaxWorkers),
 		workerWg:    &sync.WaitGroup{},
 		dispWg:      &sync.WaitGroup{},
