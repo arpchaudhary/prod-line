@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	HEARTBEAT_PULSE_TIME = time.Second
+	//TODO: Currently keep at 1 second so that the stats are correct
+	HEARTBEAT_PULSE_TIME = 3*time.Second
 )
 
 type Dispatcher struct {
@@ -80,10 +81,10 @@ func (d *Dispatcher) heartbeat() {
 		//Print the amount of time spent in pool
 		aliveCount := 0
 		d.stats.counter += 1
-		throughput := 0
+		//throughput := 0
 		runCount := 0
-		d.stats.jobsSuccess = 0
-		d.stats.jobsFailed = 0
+		totalJobsSuccess := 0
+		totalJobsFailed := 0
 
 		for _, worker := range d.workerMap {
 			runCount += 1
@@ -91,16 +92,18 @@ func (d *Dispatcher) heartbeat() {
 			if workerStats.alive {
 				aliveCount += 1
 			}
-			d.stats.jobsFailed += workerStats.jobsFailed
-			d.stats.jobsSuccess += workerStats.jobsSuccess
-			//log.Println("[Hbeat]", "Collecting stats for worker", worker.Id)
-
-			//Calculate a rolling average
-			//throughput := ((throughput * (runCount-1)) + workerStats.throughput)/runCount
+			totalJobsFailed += workerStats.jobsFailed
+			totalJobsSuccess += workerStats.jobsSuccess
 		}
-		d.stats.throughput = throughput
-		log.Println("[HBeat] Alive:", aliveCount, " Success:", d.stats.jobsSuccess, " Failed:", d.stats.jobsFailed)
 
+		newJobsProcessed := (totalJobsSuccess + totalJobsFailed) - (d.stats.jobsSuccess + d.stats.jobsFailed)
+		d.stats.jobsSuccess = totalJobsSuccess
+		d.stats.jobsFailed = totalJobsFailed
+		//totalJobs = d.stats.jobsSuccess + d.stats.jobsFailed 
+		d.stats.throughput = int(float64(newJobsProcessed) * (float64(time.Second)/float64(HEARTBEAT_PULSE_TIME)))
+		log.Println("[HBeat] Alive:", aliveCount, "Success:", d.stats.jobsSuccess,
+			"Fail:", d.stats.jobsFailed, "QFill:", (len(d.jobQueue)*100)/cap(d.jobQueue), `%`,
+			"Output(J/s):", d.stats.throughput)
 	}
 
 }
@@ -129,7 +132,7 @@ func (d *Dispatcher) dispatch() {
 		//fmt.Printf("Adding %s to workerJobQueue\n", job.ID())
 	}
 
-	log.Println("[Dsptch]", "Job Queue allocation has stopped")
+	log.Println("[Dspch]", "Job Queue allocation has stopped")
 
 	//Close all the workers that are entering the queue now
 	for worker := range d.workerPool {
@@ -137,7 +140,7 @@ func (d *Dispatcher) dispatch() {
 	}
 
 	//Need to shut down the workerPool
-	log.Printf("[Dsptch] Worker Pool closed\n")
+	log.Printf("[Dspch] Worker Pool closed\n")
 	d.dispWg.Done()
 
 	//We have closed the input for the workers. Waiting for them to shutdown now
@@ -163,7 +166,7 @@ func (d *Dispatcher) Close() {
 
 	//release referencers to the workers created
 	d.workerMap = nil
-	log.Println("Dispatcher closed")
+	log.Println("[Dspch] Shutdown complete")
 
 }
 
@@ -179,7 +182,7 @@ func DefaultDispatcher(name string) *Dispatcher {
 	if err != nil {
 		//This is the cost of using the default dispatch
 		//If you dont want to take decisions, we will take them for you
-		log.Fatalf("Dispatcher %s could not be started with defaults. Something is horribly wrong.", name)
+		log.Fatalf("[Dspch] Dispatcher %s could not be started with defaults. Something is horribly wrong.", name)
 	}
 	return d
 }

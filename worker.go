@@ -75,7 +75,7 @@ func (w *Worker) Start() {
 			//Add the worker back to the pool
 			//This can panic if the worker pool is already closed
 			//Shutting down state
-			
+
 			if len(w.jobQueue) == 0 {
 				w.workerPool <- w.jobQueue
 			}

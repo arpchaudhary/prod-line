@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -38,9 +37,9 @@ func generateWork(workers int, term chan os.Signal, done chan bool) {
 
 		config := DispatcherConfig{
 			Name:         "RedChief",
-			JobQueueSize: 10,
-			MaxWorkers:   2000,
-			WorkerBurst:  4,
+			JobQueueSize: 1000,
+			MaxWorkers:   20000,
+			WorkerBurst:  1,
 		}
 
 		d, _ := NewDispatcher(config)
@@ -52,12 +51,12 @@ func generateWork(workers int, term chan os.Signal, done chan bool) {
 
 		d.Run()
 		jobCounter := 0
-		delay := 1000 * time.Millisecond
+		delay := 10 * time.Millisecond
 		for {
 			select {
 			case <-term:
 				//terminate on the receipt of this signal
-				log.Println("Received the termination signal")
+				log.Println("[Main] Received the termination signal")
 				return
 			default:
 				jobCounter += 1
@@ -79,5 +78,5 @@ func main() {
 	generateWork(100, sigs, done)
 	<-done
 
-	fmt.Println("All work is done. World peace achieved")
+	log.Println("[Main]", "All work is done. World peace achieved")
 }
