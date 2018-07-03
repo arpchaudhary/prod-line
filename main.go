@@ -1,7 +1,11 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
 	"time"
 	//_ "worker-queue/dispatcher"
 )
@@ -25,29 +29,54 @@ func (w *Work) ID() string {
 	return w.Name
 }
 
+func generateWork(workers int, term chan os.Signal, done chan bool) {
+
+	go func() {
+
+		//d := DefaultDispatcher("Chief")
+
+		config := DispatcherConfig{
+			Name:         "RedChief",
+			JobQueueSize: 1000,
+			MaxWorkers:   20000,
+			WorkerBurst:  1,
+		}
+
+		d, _ := NewDispatcher(config)
+
+		defer func() {
+			d.Close()
+			done <- true
+		}()
+
+		d.Run()
+		jobCounter := 0
+		delay := 10 * time.Millisecond
+		for {
+			select {
+			case <-term:
+				//terminate on the receipt of this signal
+				log.Println("[Main] Received the termination signal")
+				return
+			default:
+				jobCounter += 1
+				d.Add(&Work{
+					Name:  strconv.Itoa(jobCounter),
+					Delay: delay})
+			}
+		}
+
+	}()
+}
+
 func main() {
-	delay := 10 * time.Millisecond
-	allWork := []Work{
-		Work{"1", delay},
-		Work{"2", delay},
-		Work{"3", delay},
-		Work{"4", delay},
-		Work{"5", delay},
-		Work{"6", delay},
-		Work{"7", delay},
-		Work{"8", delay},
-		Work{"9", delay},
-		Work{"10", delay},
-	}
 
-	d := NewDispatcher("dp_1", 5)
-	d.Run()
+	sigs := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
 
-	for _, w := range allWork {
-		d.AddJob(&w)
-	}
-	fmt.Println("Added all the work to be done")
-	// time.Sleep(1 * time.Second)
-	d.SafeClose()
-	fmt.Println("All work is done. World peace achieved")
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	generateWork(100, sigs, done)
+	<-done
+
+	log.Println("[Main]", "All work is done. World peace achieved")
 }
