@@ -82,6 +82,9 @@ func (d *Dispatcher) heartbeat() {
 		d.stats.counter += 1
 		throughput := 0
 		runCount := 0
+		d.stats.jobsSuccess = 0
+		d.stats.jobsFailed = 0
+
 		for _, worker := range d.workerMap {
 			runCount += 1
 			workerStats := worker.Stats()
@@ -90,12 +93,13 @@ func (d *Dispatcher) heartbeat() {
 			}
 			d.stats.jobsFailed += workerStats.jobsFailed
 			d.stats.jobsSuccess += workerStats.jobsSuccess
+			//log.Println("[Hbeat]", "Collecting stats for worker", worker.Id)
 
 			//Calculate a rolling average
 			//throughput := ((throughput * (runCount-1)) + workerStats.throughput)/runCount
 		}
 		d.stats.throughput = throughput
-		//log.Println("[HBeat] Alive:", aliveCount, " Success:", d.stats.jobsSuccess, " Failed:", d.stats.jobsFailed)
+		log.Println("[HBeat] Alive:", aliveCount, " Success:", d.stats.jobsSuccess, " Failed:", d.stats.jobsFailed)
 
 	}
 
@@ -125,16 +129,15 @@ func (d *Dispatcher) dispatch() {
 		//fmt.Printf("Adding %s to workerJobQueue\n", job.ID())
 	}
 
-	log.Printf("Dispatcher jobQueue has ended.\n")
+	log.Println("[Dsptch]", "Job Queue allocation has stopped")
 
 	//Close all the workers that are entering the queue now
 	for worker := range d.workerPool {
 		close(worker)
-		fmt.Println("Closed worker")
 	}
 
 	//Need to shut down the workerPool
-	log.Printf("Worker Pool closed\n")
+	log.Printf("[Dsptch] Worker Pool closed\n")
 	d.dispWg.Done()
 
 	//We have closed the input for the workers. Waiting for them to shutdown now

@@ -38,8 +38,8 @@ func generateWork(workers int, term chan os.Signal, done chan bool) {
 
 		config := DispatcherConfig{
 			Name:         "RedChief",
-			JobQueueSize: 1,
-			MaxWorkers:   2,
+			JobQueueSize: 10,
+			MaxWorkers:   2000,
 			WorkerBurst:  4,
 		}
 

@@ -2,7 +2,7 @@ package main
 
 import (
 	//"fmt"
-	"log"
+	_ "log"
 	"sync"
 	"time"
 )
@@ -61,7 +61,6 @@ func (w *Worker) Start() {
 			// Add my jobQueue to the worker pool.
 			execStart := time.Now()
 			err := job.Execute()
-			log.Printf("Worker[%d] executed Job[%s]\n", w.Id, job.ID())
 			w.stats.execTime += time.Since(execStart)
 			w.stats.jobsTotal += 1
 			if err == nil {
@@ -70,6 +69,7 @@ func (w *Worker) Start() {
 				w.stats.jobsFailed += 1
 			}
 
+			//log.Printf("Worker[%d] executed Job[%s] S:%d F:%d\n", w.Id, job.ID(), w.stats.jobsSuccess, w.stats.jobsFailed)
 			//TODO: Add a throughput mechanism here
 
 			//Add the worker back to the pool
